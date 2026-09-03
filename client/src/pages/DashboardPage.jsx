@@ -16,7 +16,7 @@ import { CategoryBreakdownChart } from '../components/dashboard/CategoryBreakdow
 import { TrendChart } from '../components/dashboard/TrendChart';
 import { LeaderboardCard } from '../components/dashboard/LeaderboardCard';
 import { CategorySummaryCards } from '../components/dashboard/CategorySummaryCards';
-import { EntryTable } from '../components/entries/EntryTable';
+import { RecentActivitiesCard } from '../components/dashboard/RecentActivitiesCard';
 import { Button } from '../components/common/Button';
 import { PersonAvatar } from '../components/common/PersonAvatar';
 import { CategoryIcon } from '../components/common/CategoryIcon';
@@ -84,7 +84,7 @@ export const DashboardPage = ({ onOpenNewEntry, onEditEntry }) => {
       const [sumRes, leadRes, entRes] = await Promise.all([
         entryApi.getSummary(params),
         entryApi.getLeaderboard(params),
-        entryApi.getAll({ ...params, limit: 5 }),
+        entryApi.getAll({ ...params, limit: 4 }),
       ]);
 
       setSummary(sumRes.data || {});
@@ -304,23 +304,12 @@ export const DashboardPage = ({ onOpenNewEntry, onEditEntry }) => {
             onSelectPerson={(pId) => setSelectedPersonId(pId)}
           />
         </div>
-        <div className="lg:col-span-7 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-900">Recent Activities</h3>
-            <Link
-              to="/entries"
-              className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800"
-            >
-              <span>View all entries</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-          <EntryTable
+        <div className="lg:col-span-7">
+          <RecentActivitiesCard
             entries={recentEntries}
             loading={loading}
-            onEdit={onEditEntry}
-            onDelete={handleDeleteEntry}
-            onLogFirst={onOpenNewEntry}
+            onEditEntry={onEditEntry}
+            onOpenNewEntry={onOpenNewEntry}
           />
         </div>
       </div>
