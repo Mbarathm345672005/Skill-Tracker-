@@ -1,5 +1,47 @@
 import React from 'react';
-import * as Icons from 'lucide-react';
+import {
+  Folder,
+  FolderGit2,
+  BookOpen,
+  Code2,
+  Briefcase,
+  GraduationCap,
+  Puzzle,
+  Flame,
+  Target,
+  Star,
+  Sparkles,
+  Layers,
+  CheckCircle,
+  Bookmark,
+  Compass,
+  Laptop,
+  Brain,
+  PenTool,
+  Terminal,
+} from 'lucide-react';
+
+const iconMap = {
+  Folder,
+  FolderGit2,
+  BookOpen,
+  Code2,
+  Briefcase,
+  GraduationCap,
+  Puzzle,
+  Flame,
+  Target,
+  Star,
+  Sparkles,
+  Layers,
+  CheckCircle,
+  Bookmark,
+  Compass,
+  Laptop,
+  Brain,
+  PenTool,
+  Terminal,
+};
 
 export const CategoryIcon = ({
   iconName = 'Folder',
@@ -7,7 +49,7 @@ export const CategoryIcon = ({
   colorHex,
   style = {},
 }) => {
-  const IconComponent = Icons[iconName] || Icons.Folder;
+  const IconComponent = iconMap[iconName] || Folder;
 
   return (
     <IconComponent
