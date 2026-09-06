@@ -15,6 +15,7 @@ import { PeriodSelector } from '../components/dashboard/PeriodSelector';
 import { getPeriodDateRange } from '../utils/dateUtils';
 import { entryApi } from '../api/entryApi';
 import { categoryApi } from '../api/categoryApi';
+import { subcategoryApi } from '../api/subcategoryApi';
 import { personApi } from '../api/personApi';
 
 export const EntriesPage = ({ onOpenNewEntry, onEditEntry }) => {
@@ -27,11 +28,14 @@ export const EntriesPage = ({ onOpenNewEntry, onEditEntry }) => {
   const [customEndDate, setCustomEndDate] = useState('');
   const [personId, setPersonId] = useState(searchParams.get('personId') || '');
   const [categoryId, setCategoryId] = useState(searchParams.get('categoryId') || '');
+  const [subcategoryId, setSubcategoryId] = useState(searchParams.get('subcategoryId') || '');
   const [status, setStatus] = useState('');
 
   // Data
   const [entries, setEntries] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [availableSubcategories, setAvailableSubcategories] = useState([]);
+  const [loadingSubcategories, setLoadingSubcategories] = useState(false);
   const [people, setPeople] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -40,6 +44,8 @@ export const EntriesPage = ({ onOpenNewEntry, onEditEntry }) => {
   useEffect(() => {
     const catQuery = searchParams.get('categoryId');
     if (catQuery) setCategoryId(catQuery);
+    const subQuery = searchParams.get('subcategoryId');
+    if (subQuery) setSubcategoryId(subQuery);
     const pQuery = searchParams.get('personId');
     if (pQuery) setPersonId(pQuery);
   }, [searchParams]);
@@ -60,6 +66,36 @@ export const EntriesPage = ({ onOpenNewEntry, onEditEntry }) => {
     fetchMetadata();
   }, []);
 
+  // Fetch subcategories whenever categoryId changes
+  useEffect(() => {
+    if (!categoryId) {
+      setAvailableSubcategories([]);
+      setSubcategoryId('');
+      return;
+    }
+
+    let isMounted = true;
+    setLoadingSubcategories(true);
+    subcategoryApi
+      .getAll(categoryId)
+      .then((res) => {
+        if (isMounted) {
+          setAvailableSubcategories(res.data || []);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load subcategories for category', err);
+        if (isMounted) setAvailableSubcategories([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingSubcategories(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [categoryId]);
+
   const fetchEntries = useCallback(async () => {
     try {
       setLoading(true);
@@ -73,6 +109,7 @@ export const EntriesPage = ({ onOpenNewEntry, onEditEntry }) => {
         endDate: dateRange.endDate || undefined,
         personId: personId || undefined,
         categoryIds: categoryId || undefined,
+        subcategoryId: subcategoryId || undefined,
         status: status || undefined,
         search: search.trim() || undefined,
       };
@@ -85,7 +122,7 @@ export const EntriesPage = ({ onOpenNewEntry, onEditEntry }) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedPeriod, customStartDate, customEndDate, personId, categoryId, status, search]);
+  }, [selectedPeriod, customStartDate, customEndDate, personId, categoryId, subcategoryId, status, search]);
 
   useEffect(() => {
     const debounce = setTimeout(() => {
@@ -101,6 +138,7 @@ export const EntriesPage = ({ onOpenNewEntry, onEditEntry }) => {
     setCustomEndDate('');
     setPersonId('');
     setCategoryId('');
+    setSubcategoryId('');
     setStatus('');
     setSearchParams({});
   };
@@ -116,7 +154,7 @@ export const EntriesPage = ({ onOpenNewEntry, onEditEntry }) => {
   };
 
   const hasActiveFilters =
-    search || selectedPeriod !== 'all_time' || personId || categoryId || status;
+    Boolean(search || selectedPeriod !== 'all_time' || personId || categoryId || subcategoryId || status);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -144,7 +182,7 @@ export const EntriesPage = ({ onOpenNewEntry, onEditEntry }) => {
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-soft-sm space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
           {/* Search Input */}
-          <div className="md:col-span-5 relative">
+          <div className="md:col-span-4 relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
               <Search className="w-4 h-4" />
             </div>
@@ -152,7 +190,7 @@ export const EntriesPage = ({ onOpenNewEntry, onEditEntry }) => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by title, notes, or topic..."
+              placeholder="Search title, notes..."
               className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
@@ -174,16 +212,47 @@ export const EntriesPage = ({ onOpenNewEntry, onEditEntry }) => {
           </div>
 
           {/* Category Dropdown */}
-          <div className="md:col-span-3">
+          <div className="md:col-span-2">
             <select
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                setSubcategoryId('');
+              }}
               className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">All Categories</option>
               {categories.map((c) => (
                 <option key={c._id} value={c._id}>
                   {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Subcategory Dropdown (Disabled until category is selected) */}
+          <div className="md:col-span-2">
+            <select
+              value={subcategoryId}
+              onChange={(e) => setSubcategoryId(e.target.value)}
+              disabled={!categoryId || loadingSubcategories}
+              title={!categoryId ? 'Select a category first to enable subcategories' : undefined}
+              className={`w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                !categoryId
+                  ? 'bg-slate-100/80 border border-slate-200/80 text-slate-400 cursor-not-allowed'
+                  : 'bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500'
+              }`}
+            >
+              <option value="">
+                {!categoryId
+                  ? 'Subcategory (Disabled)'
+                  : loadingSubcategories
+                  ? 'Loading subcategories...'
+                  : 'All Subcategories'}
+              </option>
+              {availableSubcategories.map((sub) => (
+                <option key={sub._id} value={sub._id}>
+                  {sub.name}
                 </option>
               ))}
             </select>

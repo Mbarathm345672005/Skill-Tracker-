@@ -8,6 +8,8 @@ import {
   ArrowRight,
   RefreshCw,
   Sparkles,
+  Filter,
+  SlidersHorizontal,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PeriodSelector } from '../components/dashboard/PeriodSelector';
@@ -23,6 +25,7 @@ import { CategoryIcon } from '../components/common/CategoryIcon';
 import { getPeriodDateRange } from '../utils/dateUtils';
 import { entryApi } from '../api/entryApi';
 import { categoryApi } from '../api/categoryApi';
+import { subcategoryApi } from '../api/subcategoryApi';
 import { personApi } from '../api/personApi';
 
 export const DashboardPage = ({ onOpenNewEntry, onEditEntry }) => {
@@ -31,11 +34,14 @@ export const DashboardPage = ({ onOpenNewEntry, onEditEntry }) => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [selectedPersonId, setSelectedPersonId] = useState(''); // '' = All People
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]); // [] = All Categories
+  const [selectedCategoryId, setSelectedCategoryId] = useState(''); // '' = All Categories
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState(''); // '' = All Subcategories
 
   // Data
   const [categories, setCategories] = useState([]);
   const [people, setPeople] = useState([]);
+  const [availableSubcategories, setAvailableSubcategories] = useState([]);
+  const [loadingSubcategories, setLoadingSubcategories] = useState(false);
   const [summary, setSummary] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   const [recentEntries, setRecentEntries] = useState([]);
@@ -51,7 +57,6 @@ export const DashboardPage = ({ onOpenNewEntry, onEditEntry }) => {
       ]);
       setCategories(catRes.data || []);
       setPeople(peopleRes.data || []);
-      setSelectedCategoryIds((catRes.data || []).map((c) => c._id));
     } catch (err) {
       console.error('Failed to load initial categories/people', err);
     }
@@ -60,6 +65,36 @@ export const DashboardPage = ({ onOpenNewEntry, onEditEntry }) => {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Fetch subcategories when selectedCategoryId changes
+  useEffect(() => {
+    if (!selectedCategoryId) {
+      setAvailableSubcategories([]);
+      setSelectedSubcategoryId('');
+      return;
+    }
+
+    let isMounted = true;
+    setLoadingSubcategories(true);
+    subcategoryApi
+      .getAll(selectedCategoryId)
+      .then((res) => {
+        if (isMounted) {
+          setAvailableSubcategories(res.data || []);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load subcategories for category', err);
+        if (isMounted) setAvailableSubcategories([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingSubcategories(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCategoryId]);
 
   // Fetch metrics whenever filters change
   const fetchDashboardData = useCallback(async () => {
@@ -75,10 +110,8 @@ export const DashboardPage = ({ onOpenNewEntry, onEditEntry }) => {
         startDate: dateRange.startDate || undefined,
         endDate: dateRange.endDate || undefined,
         personId: selectedPersonId || undefined,
-        categoryIds:
-          selectedCategoryIds.length > 0 && selectedCategoryIds.length !== categories.length
-            ? selectedCategoryIds.join(',')
-            : undefined,
+        categoryIds: selectedCategoryId || undefined,
+        subcategoryId: selectedSubcategoryId || undefined,
       };
 
       const [sumRes, leadRes, entRes] = await Promise.all([
@@ -112,42 +145,16 @@ export const DashboardPage = ({ onOpenNewEntry, onEditEntry }) => {
     customStartDate,
     customEndDate,
     selectedPersonId,
-    selectedCategoryIds,
-    categories.length,
+    selectedCategoryId,
+    selectedSubcategoryId,
   ]);
 
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Toggle category multi-select chip
-  const handleToggleCategory = (catId) => {
-    setSelectedCategoryIds((prev) => {
-      if (prev.includes(catId)) {
-        // don't allow unselecting all, keep at least one or toggle
-        if (prev.length === 1) return categories.map((c) => c._id);
-        return prev.filter((id) => id !== catId);
-      } else {
-        return [...prev, catId];
-      }
-    });
-  };
-
-  const handleSelectAllCategories = () => {
-    setSelectedCategoryIds(categories.map((c) => c._id));
-  };
-
   const selectedPersonObj = people.find((p) => p._id === selectedPersonId);
-
-  const handleDeleteEntry = async (id) => {
-    try {
-      await entryApi.delete(id);
-      toast.success('Activity deleted');
-      fetchDashboardData();
-    } catch (err) {
-      toast.error('Failed to delete activity');
-    }
-  };
+  const selectedCategoryObj = categories.find((c) => c._id === selectedCategoryId);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
@@ -176,87 +183,198 @@ export const DashboardPage = ({ onOpenNewEntry, onEditEntry }) => {
           />
         </div>
 
-        {/* Person & Category Chips Filter Strip */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-slate-200/80 shadow-soft-sm">
-          {/* Person Selector */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5" /> Filter by Person
-            </label>
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-              <button
-                type="button"
-                onClick={() => setSelectedPersonId('')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap transition-all ${
-                  selectedPersonId === ''
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                All People ({people.length})
-              </button>
-              {people.map((p) => {
-                const isSelected = selectedPersonId === p._id;
-                return (
+        {/* Filter Strip Card */}
+        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-soft-sm space-y-4">
+          {/* Row 1: Person & Category Filters */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            {/* Person Selector */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" /> Filter by Person
+              </label>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPersonId('')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap transition-all ${
+                    selectedPersonId === ''
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  All People ({people.length})
+                </button>
+                {people.map((p) => {
+                  const isSelected = selectedPersonId === p._id;
+                  return (
+                    <button
+                      key={p._id}
+                      type="button"
+                      onClick={() => setSelectedPersonId(p._id)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl whitespace-nowrap transition-all ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <PersonAvatar name={p.name} size="sm" />
+                      <span>{p.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Category Selector */}
+            <div className="space-y-1.5 lg:border-l lg:border-slate-200 lg:pl-5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5" /> Filter by Category
+                </label>
+                {selectedCategoryId && (
                   <button
-                    key={p._id}
                     type="button"
-                    onClick={() => setSelectedPersonId(p._id)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl whitespace-nowrap transition-all ${
-                      isSelected
-                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
+                    onClick={() => {
+                      setSelectedCategoryId('');
+                      setSelectedSubcategoryId('');
+                    }}
+                    className="text-[11px] font-semibold text-indigo-600 hover:underline"
                   >
-                    <PersonAvatar name={p.name} size="sm" />
-                    <span>{p.name}</span>
+                    All Categories
                   </button>
-                );
-              })}
+                )}
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategoryId('');
+                    setSelectedSubcategoryId('');
+                  }}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap transition-all ${
+                    !selectedCategoryId
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  All Categories ({categories.length})
+                </button>
+                {categories.map((cat) => {
+                  const isSelected = selectedCategoryId === cat._id;
+                  return (
+                    <button
+                      key={cat._id}
+                      type="button"
+                      onClick={() => {
+                        if (selectedCategoryId === cat._id) {
+                          setSelectedCategoryId('');
+                          setSelectedSubcategoryId('');
+                        } else {
+                          setSelectedCategoryId(cat._id);
+                          setSelectedSubcategoryId('');
+                        }
+                      }}
+                      style={{
+                        backgroundColor: isSelected ? `${cat.color}20` : undefined,
+                        borderColor: isSelected ? cat.color : undefined,
+                        color: isSelected ? cat.color : undefined,
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all whitespace-nowrap ${
+                        isSelected
+                          ? 'shadow-soft-sm font-black ring-1 ring-current'
+                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+                      }`}
+                    >
+                      <CategoryIcon iconName={cat.icon} colorHex={isSelected ? cat.color : undefined} className="w-3.5 h-3.5" />
+                      <span>{cat.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* Category Multi-select Chips */}
-          <div className="space-y-1.5 lg:border-l lg:border-slate-200 lg:pl-5">
+          {/* Row 2: Subcategories Filter (Disabled until category is selected) */}
+          <div className="pt-3 border-t border-slate-100 space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5" /> Categories
+                <Filter className="w-3.5 h-3.5" /> Subcategory Filter
+                {!selectedCategoryId && (
+                  <span className="text-[11px] font-normal text-slate-400 italic">
+                    (Disabled — Select a category above first)
+                  </span>
+                )}
+                {selectedCategoryObj && (
+                  <span className="text-[11px] font-semibold text-slate-600">
+                    under {selectedCategoryObj.name}
+                  </span>
+                )}
               </label>
-              {selectedCategoryIds.length !== categories.length && (
+
+              {selectedSubcategoryId && (
                 <button
                   type="button"
-                  onClick={handleSelectAllCategories}
+                  onClick={() => setSelectedSubcategoryId('')}
                   className="text-[11px] font-semibold text-indigo-600 hover:underline"
                 >
-                  Select All
+                  Clear Subcategory
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-              {categories.map((cat) => {
-                const isSelected = selectedCategoryIds.includes(cat._id);
-                return (
-                  <button
-                    key={cat._id}
-                    type="button"
-                    onClick={() => handleToggleCategory(cat._id)}
-                    style={{
-                      backgroundColor: isSelected ? `${cat.color}20` : undefined,
-                      borderColor: isSelected ? cat.color : undefined,
-                      color: isSelected ? cat.color : undefined,
-                    }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${
-                      isSelected
-                        ? 'shadow-soft-sm font-black'
-                        : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
-                    }`}
-                  >
-                    <CategoryIcon iconName={cat.icon} colorHex={isSelected ? cat.color : undefined} className="w-3.5 h-3.5" />
-                    <span>{cat.name}</span>
-                  </button>
-                );
-              })}
-            </div>
+
+            {!selectedCategoryId ? (
+              <div className="flex items-center gap-2 py-0.5">
+                <div
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-400 bg-slate-100/70 border border-slate-200/60 rounded-xl select-none cursor-not-allowed"
+                  title="Select a category above to enable subcategory filtering"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-slate-300" />
+                  <span>Subcategory filter is disabled — Click any category above to select subcategories</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none animate-in fade-in duration-150">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSubcategoryId('')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap transition-all ${
+                    !selectedSubcategoryId
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  All Subcategories ({availableSubcategories.length})
+                </button>
+                {loadingSubcategories ? (
+                  <span className="text-xs text-slate-400 italic py-1.5">Loading subcategories...</span>
+                ) : availableSubcategories.length === 0 ? (
+                  <span className="text-xs text-slate-400 italic py-1.5">No subcategories defined for {selectedCategoryObj?.name}</span>
+                ) : (
+                  availableSubcategories.map((sub) => {
+                    const isSelected = selectedSubcategoryId === sub._id;
+                    return (
+                      <button
+                        key={sub._id}
+                        type="button"
+                        onClick={() => setSelectedSubcategoryId(isSelected ? '' : sub._id)}
+                        style={{
+                          backgroundColor: isSelected ? `${selectedCategoryObj?.color || '#6366f1'}20` : undefined,
+                          borderColor: isSelected ? selectedCategoryObj?.color || '#6366f1' : undefined,
+                          color: isSelected ? selectedCategoryObj?.color || '#6366f1' : undefined,
+                        }}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all whitespace-nowrap ${
+                          isSelected
+                            ? 'shadow-soft-sm font-black ring-1 ring-current'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
+                        }`}
+                      >
+                        <span>{sub.name}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -50,6 +50,12 @@ exports.getEntries = async (req, res, next) => {
       }
     }
 
+    // Subcategory filter
+    const { subcategoryId } = req.query;
+    if (subcategoryId && mongoose.Types.ObjectId.isValid(subcategoryId)) {
+      filter.subcategoryId = new mongoose.Types.ObjectId(subcategoryId);
+    }
+
     // Text search on title and notes
     if (search) {
       filter.$or = [
@@ -219,6 +225,11 @@ exports.getSummary = async (req, res, next) => {
       if (ids.length > 0) {
         match.categoryId = { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) };
       }
+    }
+
+    const { subcategoryId } = req.query;
+    if (subcategoryId && mongoose.Types.ObjectId.isValid(subcategoryId)) {
+      match.subcategoryId = new mongoose.Types.ObjectId(subcategoryId);
     }
 
     // 1. Total Metrics
@@ -415,6 +426,11 @@ exports.getLeaderboard = async (req, res, next) => {
       if (ids.length > 0) {
         match.categoryId = { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) };
       }
+    }
+
+    const { subcategoryId } = req.query;
+    if (subcategoryId && mongoose.Types.ObjectId.isValid(subcategoryId)) {
+      match.subcategoryId = new mongoose.Types.ObjectId(subcategoryId);
     }
 
     // Get all people first to include those with 0 entries in the leaderboard

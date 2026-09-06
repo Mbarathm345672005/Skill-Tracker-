@@ -68,18 +68,20 @@ export const CategorySummaryCards = ({
                   <p className="text-xs text-slate-400 italic">No subcategory activity</p>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
-                    {subcats.slice(0, 4).map((sub) => (
-                      <span
+                    {subcats.slice(0, 6).map((sub) => (
+                      <Link
                         key={sub._id}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700"
+                        to={`/entries?categoryId=${cat._id}&subcategoryId=${sub._id}`}
+                        title={`Filter entries by ${sub.name}`}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-xs font-medium text-slate-700 hover:text-indigo-700 transition-colors"
                       >
                         <span>{sub.name}</span>
                         <span className="font-bold text-slate-900">({sub.count})</span>
-                      </span>
+                      </Link>
                     ))}
-                    {subcats.length > 4 && (
+                    {subcats.length > 6 && (
                       <span className="text-xs text-slate-400 self-center">
-                        +{subcats.length - 4} more
+                        +{subcats.length - 6} more
                       </span>
                     )}
                   </div>
