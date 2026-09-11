@@ -23,6 +23,18 @@
 
 ---
 
+## Sample Screenshots
+
+- **Page 1**
+<img width="1763" height="2157" alt="image" src="https://github.com/user-attachments/assets/030dbb7f-30bb-4dd9-ba07-854729bfcc64" />
+
+- **Page 2**
+<img width="1919" height="833" alt="image" src="https://github.com/user-attachments/assets/519f8c42-da3a-41ca-8b0b-3625736d5f21" />
+
+- **Page 3**
+<img width="1913" height="845" alt="image" src="https://github.com/user-attachments/assets/6e97e57a-3c65-4390-9e85-e13fc78cc697" />
+
+  
 ## 📁 Monorepo Layout
 
 ```
